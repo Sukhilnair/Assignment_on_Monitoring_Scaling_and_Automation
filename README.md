@@ -67,7 +67,7 @@ Architectural Diagram:
 ![Architectural Diagram](./deploy_web.drawio.png)
 
 ```shell 
-python deploy.py
+python deployment.py
 ```
 
 - Monitor and Manage
