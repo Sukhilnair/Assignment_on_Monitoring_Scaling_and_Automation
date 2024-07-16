@@ -1,6 +1,26 @@
 import boto3
 from botocore.exceptions import ClientError
 
+def delete_all_objects_in_bucket(s3, bucket_name):
+    try:
+        paginator = s3.get_paginator('list_objects_v2')
+        pages = paginator.paginate(Bucket=bucket_name)
+
+        for page in pages:
+            if 'Contents' in page:
+                for obj in page['Contents']:
+                    s3.delete_object(Bucket=bucket_name, Key=obj['Key'])
+                    print(f'Deleted {obj["Key"]} from {bucket_name}')
+    except ClientError as e:
+        print(f'Error deleting objects: {e}')
+
+def delete_bucket(s3, bucket_name):
+    try:
+        s3.delete_bucket(Bucket=bucket_name)
+        print(f'Bucket {bucket_name} deleted successfully')
+    except ClientError as e:
+        print(f'Error deleting bucket: {e}')
+
 def get_default_vpc_id(ec2_client):
     try:
         response = ec2_client.describe_vpcs(Filters=[{'Name': 'tag:Name', 'Values': ["default_vpc"]}])
@@ -265,11 +285,13 @@ def main():
     autoscalingName = "monitoringautoscale"
     policyName = "monitroingploicy"
     launch_configuration_name = "monitoring_launch_configuration"
+    bucket_name = 'sukhilmybucket2'
 
     session = boto3.Session(profile_name='profile1', region_name="ap-northeast-2")
     ec2_client = session.client('ec2')
     elbv2_client = session.client('elbv2')
     autoscaling = session.client('autoscaling')
+    s3 = session.client('s3')
 
     vpc_id, sg_id, current_ports = get_default_vpc_id(ec2_client)
 
@@ -287,7 +309,10 @@ def main():
     autoscaling_exists = check_autoscaling(autoscaling, autoscalingName)
     scaling_policy_exists = check_scaling_policy_existence(autoscaling, autoscalingName, policyName)
 
-    # Delete operations
+    delete_all_objects_in_bucket(s3,bucket_name)
+
+    delete_bucket(s3, bucket_name)
+    
     if primary_instance_id:
         delete_ec2_instance(ec2_client, primary_instance_id)
     

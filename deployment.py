@@ -2,7 +2,72 @@ import boto3
 from botocore.exceptions import ClientError
 import time
 import ipaddress
+import json
 
+
+def create_bucket_if_not_exists(s3, bucket_name, region):
+    try:
+        location = {'LocationConstraint': region}
+        response = s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration=location)
+        if response["ResponseMetadata"]:
+            print(f"Bucket created successfully: {response['Location']}")
+        print(f'Bucket {bucket_name} created successfully')
+
+    except s3.exceptions.BucketAlreadyExists as e:
+        print(f'Bucket {bucket_name} already exists')
+    except s3.exceptions.BucketAlreadyOwnedByYou as e:
+        print(f'Bucket {bucket_name} already owned by you')
+    except ClientError as e:
+        print(f'Error creating bucket: {e}')
+        return False
+
+    return True
+
+def set_bucket_public(s3, bucket_name):
+    bucket_policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": [
+                    "s3:GetObject"
+                ],
+                "Resource": [
+                    f"arn:aws:s3:::{bucket_name}/*"
+                ]
+            }
+        ]
+    }
+
+    bucket_policy = json.dumps(bucket_policy)
+    try:
+        s3.put_bucket_policy(Bucket=bucket_name, Policy=bucket_policy)
+        print(f'Bucket policy set to public for {bucket_name}')
+    except ClientError as e:
+        print(f'Error setting bucket policy: {e}')
+
+def upload_or_update_object(s3, bucket_name, object_key):
+    file_path = "./webstatic.zip"
+    try:
+        s3.upload_file(file_path, bucket_name, object_key)
+        print(f'File {file_path} uploaded to {bucket_name}/{object_key}')
+    except FileNotFoundError:
+        print(f'The file {file_path} was not found')
+    except ClientError as e:
+        print(f'Error uploading file: {e}')
+
+def upload_or_update_object(s3, bucket_name, object_key):
+
+    s3 = boto3.client('s3')
+    try:
+        file_path="./webstatic.zip"
+        s3.upload_file(file_path, bucket_name, object_key)
+        print(f'File {file_path} uploaded to {bucket_name}/{object_key}')
+    except FileNotFoundError:
+        print(f'The file {file_path} was not found')
+    except ClientError as e:
+        print(f'Error uploading file: {e}')
 
 def get_default_vpc_id(ec2_client):
     try:
@@ -567,11 +632,18 @@ def main():
         autoscalingName="monitoringautoscale"
         policyName="monitroingploicy"
         launch_configuration_name="monitoring_launch_configuration"
+        bucket_name = 'sukhilmybucket2'
         
         session = boto3.Session(profile_name='profile1', region_name="ap-northeast-2")
         ec2_client = session.client('ec2')
         elbv2_client = session.client('elbv2')
         autoscaling = session.client('autoscaling')
+        s3 = session.client('s3')
+
+
+        if create_bucket_if_not_exists(s3, bucket_name, region="ap-northeast-2"):
+            set_bucket_public(s3, bucket_name)
+            upload_or_update_object(s3, bucket_name, "webstatic.zip")
 
         vpc_id, sg_id, current_ports = get_default_vpc_id(ec2_client)
 
@@ -667,20 +739,6 @@ def main():
             response_scaling_policy = create_scaling_policy(autoscaling, autoscalingName, policyName)
             if response_scaling_policy is None:
                 print("Failed to create scaling policy.")
-        # Final_json = {}
-        # Final_json["primary_instance_id"] = primary_instance_id
-        # Final_json["secondary_instance_id"] = secondary_instance_id
-        # Final_json["load_balancing_arn"] = load_balancing_arn
-        # Final_json["target_group_arn"] = target_group_arn
-        # Final_json["listener_arn"] = listener_arn
-        # Final_json["launch_configuration_arn"] = launch_configuration_arn
-        # Final_json["autoscalingName"] = autoscalingName
-        # Final_json["autoscaling_arn"] = response_autoscaling
-        # Final_json["scaling_policy_arn"] = response_scaling_policy
-        # Final_json["policyName"] = policyName
-        # Final_json['VPC_id'] = vpc_id
-        # print(Final_json)
-
 
     except ClientError as e:
         print(f"An error occurred: {e}")
